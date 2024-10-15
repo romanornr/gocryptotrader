@@ -78,16 +78,12 @@ func (b *Base) CheckCredentials(creds *account.Credentials, isContext bool) erro
 		return b.VerifyAPICredentials(creds)
 	}
 
-	// Bot usage, AuthenticatedSupport can be disabled by user if desired, so
-	// don't allow authenticated requests. Context credentials set will override
-	// default credentials and supported checks.
-	if !b.API.AuthenticatedSupport && !b.API.AuthenticatedWebsocketSupport && !isContext {
-		return fmt.Errorf("%s %w", b.Name, ErrAuthenticationSupportNotEnabled)
+	// Verify credentials if authenticated support is enabled or context is used
+	if b.API.AuthenticatedSupport || b.API.AuthenticatedWebsocketSupport || isContext {
+		return b.VerifyAPICredentials(creds)
 	}
 
-	// Check to see if the user has enabled AuthenticatedSupport, but has
-	// invalid API credentials set and loaded by config
-	return b.VerifyAPICredentials(creds)
+	return fmt.Errorf("%s %w", b.Name, ErrAuthenticationSupportNotEnabled)
 }
 
 // AreCredentialsValid returns if the supplied credentials are valid.
