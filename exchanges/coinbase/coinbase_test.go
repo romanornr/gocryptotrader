@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -34,6 +35,7 @@ import (
 	"github.com/thrasher-corp/gocryptotrader/exchanges/futures"
 	"github.com/thrasher-corp/gocryptotrader/exchanges/kline"
 	"github.com/thrasher-corp/gocryptotrader/exchanges/order"
+	"github.com/thrasher-corp/gocryptotrader/exchanges/request"
 	"github.com/thrasher-corp/gocryptotrader/exchanges/sharedtestvalues"
 	"github.com/thrasher-corp/gocryptotrader/exchanges/subscription"
 	testexch "github.com/thrasher-corp/gocryptotrader/internal/testing/exchange"
@@ -267,6 +269,31 @@ func TestCancelOrders(t *testing.T) {
 	resp, err := e.CancelOrders(t.Context(), orderSlice)
 	require.NoError(t, err)
 	assert.NotEmpty(t, resp, errExpectedNonEmpty)
+}
+
+func TestClassifyOrderNotFound(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		code         string
+		wantNotFound bool
+	}{
+		{code: "NOT_FOUND", wantNotFound: true},
+		{code: "INVALID_ARGUMENT"},
+	} {
+		t.Run(tt.code, func(t *testing.T) {
+			t.Parallel()
+			body := fmt.Sprintf(`{"error":%q,"message":"fixture"}`, tt.code)
+			original := fmt.Errorf("%w raw response: %s", request.ErrBadStatus, body)
+			err := classifyOrderNotFound(parseResponseError(original, json.RawMessage(body)))
+			if tt.wantNotFound {
+				assert.ErrorIs(t, err, order.ErrOrderNotFound, "error should wrap order not found")
+			} else {
+				assert.NotErrorIs(t, err, order.ErrOrderNotFound, "invalid argument should not prove order absence")
+			}
+			assert.ErrorIs(t, err, request.ErrBadStatus, "error should preserve the request failure")
+			assert.ErrorContains(t, err, body, "error should preserve the raw Coinbase response")
+		})
+	}
 }
 
 func TestClosePosition(t *testing.T) {
